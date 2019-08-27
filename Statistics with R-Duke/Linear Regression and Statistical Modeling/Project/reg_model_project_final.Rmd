@@ -1,0 +1,376 @@
+---
+title: "Modeling and prediction for movies"
+output: 
+  html_document: 
+    fig_height: 4
+    highlight: pygments
+    theme: spacelab
+---
+
+## Setup
+
+### Load packages
+
+```{r load-packages, message = FALSE}
+library(ggplot2)
+library(dplyr)
+library(statsr)
+library(GGally)
+```
+
+### Load data
+
+```{r load-data}
+load("movies.Rdata")
+str(movies) #lists out the variables used in the "movies" dataset
+```
+
+***
+
+## Part 1: Data
+```{r}
+dim(movies) #gives the dimensions of the dataset
+summary(movies) #gives the summary of every variable used in the dataset
+```
+```{r}
+min(movies$thtr_rel_year) #lists the smallest number in the variable "thtr_rel_year"
+max(movies$thtr_rel_year) #lists the largest number in the variable "thtr_rel_year"
+```
+The "movies" dataset has 651 entries and 32 variables. 
+
+**Generalizability**
+
+According to IMDB's official website, it is indicated that there were 9454 movies released between the year 1970-2014. [Click here](https://www.imdb.com/list/ls057823854/?sort=list_order,asc&st_dt=&mode=detail&page=1&release_date=1970%2C2014&ref_=ttls_ref_yr) Our current dataset includes 651 entries. This is well within 10% of the total dataset. Therefore, proving the usage of random sampling to obtain the sample dataset.  
+
+**Causality**
+
+Causality can be explained only for an experimental dataset and not for an observational dataset. Since the "movies" dataset is an observational dataset, no comment regarding causality can be made.   
+
+
+***
+
+## Part 2: Research question
+**How do factors like genre, runtime, best picture nomination, best actor or actress win affect audience score apart from the regular factors like imdb rating, critics rating and year of release?**
+
+Why this question interests me:  
+Some people are not a fan of certain genres and there are chances that they would rate the movie low, even if it is a great movie in that genre. In my opinion, most movies which have been nominated for best picture at Oscar perform well with the audience. The popularity of actor and actress also affects how the audience rates the movie. Year and time of release play an important role too. Similarly, there are some people who depend on the critics rating and imdb rating before watching a movie. These are some reasons I’m interested in knowing how the above-stated factors affect audience score.  
+
+***
+
+## Part 3: Exploratory data analysis
+
+We notice that although there are 32 variables present in the "movies" dataset, not every variable will aid us in answering the research question. Instead, we will create a new dataset called "movie_newset" created by using the variables from the "movies" dataset. We will include the variables that are useful in answering the research question.   
+
+```{r}
+movies_newset <- movies %>%
+  select(title, title_type, genre, runtime, mpaa_rating, thtr_rel_year, thtr_rel_month, dvd_rel_year,imdb_rating, imdb_num_votes, critics_rating, critics_score, audience_rating, audience_score, best_pic_nom, best_pic_win, best_actor_win, best_actress_win, best_dir_win, top200_box) #select the variables that are useful to answer the research question
+
+movies_newset <- na.exclude(movies_newset) #exclude NA's from the dataset
+dim(movies_newset) #gives the dimensions of the dataset
+str(movies_newset) #displays all the variables present in the new dataset
+```
+
+
+Let’s look at how some categorical variables perform against audience score. This can be understood by using a density plot. The density plot gives information about the probability of a categorical variable having a higher audience score. We shall look at the performance of the following categorical variable against audience score: -  
+
+1. title_type    
+2. genre  
+3. mpaa_rating  
+4. critics_rating  
+5. best_pic_nom  
+6. best_dir_win  
+7. best_actor_win  
+8. best_actress_win  
+9. top200_box  
+
+These performances can be used as a factor while selecting the model. 
+
+```{r}
+ggplot(movies_newset, aes(audience_score, fill = title_type))+
+  geom_density(alpha = 0.3) #performance of title_type against audience score
+
+ggplot(movies_newset, aes(audience_score, fill = genre))+
+  geom_density(alpha = 0.2) #performance of genre against audience score
+
+ggplot(movies_newset, aes(audience_score, fill = mpaa_rating))+
+  geom_density(alpha = 0.3) #performance of mpaa_rating against audience score
+
+ggplot(movies_newset, aes(audience_score, fill = critics_rating))+
+  geom_density(alpha = 0.3) #performance of critics rating against audience score
+
+ggplot(movies_newset, aes(audience_score, fill = best_pic_nom))+
+  geom_density(alpha = 0.3) #performance of best_pic_nom against audience score
+
+ggplot(movies_newset, aes(audience_score, fill = best_dir_win))+
+  geom_density(alpha = 0.3) #performance of best_dir_win against audience score
+
+ggplot(movies_newset, aes(audience_score, fill = best_actor_win))+
+  geom_density(alpha = 0.3) #performance of best_actor_win against audience score
+
+ggplot(movies_newset, aes(audience_score, fill = best_actress_win))+
+  geom_density(alpha = 0.3) #performance of best_actress_win against audience score
+
+ggplot(movies_newset, aes(audience_score, fill = top200_box))+
+  geom_density(alpha = 0.3) #performance of top200_box against audience score
+```
+  
+The following inference can be made by the above plots: - 
+
+* Documentary films have a higher probability of receiving a higher audience score.  
+* Horror genre right-skewed. Documentary genre has a higher probability of receiving a higher audience score.  
+* NC-17 mpaa_rating is a mid-range performer while unrated movies are left-skewed.  
+* Critics "Certified Fresh" movies perform well by having a higher rating while critics certified "Rotten" perform poorly.  
+* If the movie is a nominee for the best picture, there is a high probability of the movie having a higher audience rating.
+* Nominee for best director is not a good indicator of audience score.
+* Whether the actor won the best actor is not a good indicator of audience score.
+* Whether the actress won the best actress is not a good indicator of audience score.
+
+From the above plots, title_type, genre, mpaa_rating, critics_rating, best_pic_nom, and top200_box give good insights about the audience score. We can use these categorical variables to build the model.    
+
+Let's look at how some numerical variables perform against the response variable audience_score. The scatterplot will give us insights whether the plot is linear or not.     
+
+```{r}
+ggplot(movies_newset, aes(x = imdb_rating, y = audience_score))+
+  geom_jitter()+
+  geom_smooth(se = FALSE, method = "lm") #plot of imdb_rating vs audience_score
+
+ggplot(movies_newset, aes(x = critics_score, y = audience_score))+
+  geom_jitter()+
+  geom_smooth(se = FALSE, method = "lm") #plot of critics_score vs audience_score
+
+ggplot(movies_newset, aes(x = thtr_rel_year, y = audience_score))+
+  geom_jitter()+
+  geom_smooth(se = FALSE, method = "lm") #plot of thtr_rel_year vs audience_score
+
+ggplot(movies_newset, aes(x = imdb_num_votes, y = audience_score))+
+  geom_jitter()+
+  geom_smooth(se = FALSE, method = "lm") #plot of imdb_num_votes vs audience_score
+
+ggplot(movies_newset, aes(x = dvd_rel_year, y = audience_score))+
+  geom_jitter()+
+  geom_smooth(se = FALSE, method = "lm") #plot of dvd_rel_year vs audience_score
+
+ggplot(movies_newset, aes(x = thtr_rel_month, y = audience_score))+
+  geom_jitter()+
+  geom_smooth(se = FALSE, method = "lm") #plot of thtr_rel_month vs audience_score
+
+movies_newset %>%
+  summarise(cor(audience_score, imdb_rating)) #gives the correlation value between audience_score and imdb_rating
+
+movies_newset %>%
+  summarise(cor(audience_score, critics_score))#gives the correlation value between audience_score and critics_score
+
+movies_newset %>%
+  summarise(cor(audience_score, thtr_rel_year))#gives the correlation value between audience_score and thtr_rel_year
+
+movies_newset %>%
+  summarise(cor(audience_score, imdb_num_votes))#gives the correlation value between audience_score and imdb_num_votes
+
+movies_newset %>%
+  summarise(cor(audience_score, dvd_rel_year))#gives the correlation value between audience_score and dvd_rel_year
+
+movies_newset %>%
+  summarise(cor(audience_score, thtr_rel_month))#gives the correlation value between audience_score and thtr_rel_month
+
+```
+  
+We understand the folloiwing from the above models: - 
+
+* There is a clear positive linear relationship between imdb_rating and audience_score. The correlation is 0.863.
+* There is a clear positive linear relationship between critics_score and audience_score. The correlation is 0.700.
+* There is a slight negative linear relationship between thtr_rel_year and audience_score. The correlation is -0.0612.
+* There is a positive linear relationship between imdb_num_votes and audience_score. The correlation is 0.292.
+* There is a slight negative linear relationship between dvd_rel_year and audience_score. The correlation is -0.0638.
+* There is a slight positive linear relationship between thtr_rel_month and audience_score. The correlation is -0.0399.
+
+**Test for collinearity**
+
+Let's check for collinearity, if there exists any, for all the numerical variables in the movies_newset dataset.  
+
+```{r}
+ggpairs(movies_newset, columns = c(4,6:10,12)) #plots all the numerical variables as a pair providing the correlation value between each variable
+```
+
+From the above plot, it is very evident that there is a high correlation between imdb_rating and critics_score. The correlation has a score of 0.762. Similarly, dvd_rel_year and thtr_rel_year has a correlation of 0.66.  
+
+The inference from the above statement is that usage of both imdb_rating and critics_score or dvd_rel_year and thtr_rel_year adds no value while making the model.  
+
+***
+
+## Part 4: Modeling
+
+Based on the exploratory data analysis conducted. The audience score can be predicted using the following 10 variables: - 
+
+1. title_type  
+2. genre  
+3. imdb_rating  
+4. imdb_num_votes  
+5. critics_rating  
+6. best_pic_nom  
+7. thtr_rel_year  
+8. best_dir_win  
+9. top200_box  
+10. runtime  
+
+**audience_score ~ title_type + runtime + genre + imdb_rating + imdb_num_votes +  critics_rating + thtr_rel_year + best_pic_nom + best_dir_win + top200_box**  
+
+```{r}
+audience_score_model <- lm(audience_score ~ title_type + runtime +  genre + critics_rating + best_pic_nom + imdb_rating + imdb_num_votes + thtr_rel_year +  best_dir_win + top200_box, data = movies_newset) #provides a linear model for audience_score using the above variables
+
+summary(audience_score_model)
+```
+
+The adjusted R-squared value for the current model is 0.7652 and the p-value is < 2.2e-16.  
+
+To fit the perfect model which could predict the response variable "audience_score", we will make use of backward elimination method using adjusted R-squared as the criteria. The main reason why we're using adjusted R-squared for model selection is because this criteria provides us with reliable prediction.  
+
+If we carry out backward elimination manually, it will be a time-consuming task. Instead we will use the step function to determine the model. Usage of this function will save a lot of time during model selection.  
+
+```{r}
+best_model <- step(audience_score_model, direction = "backward", trace = FALSE) #AIC based backward elimination method similar to Adj R-squared backward elimination method
+
+summary(best_model)
+```
+The simplified model after using the backward elimination has 5 variables i.e runtime, genre, imdb_rating, critics_rating and thtr_rel_year. Runtime, imdb_rating, thtr_rel_year and critics_rating are the significant variables for this model. The adjusted R-squared value is 0.766 and the p value is < 2.2e-16.  
+
+The best_model becomes our parsimonious model here. According to the best_model: -  
+
+**audience_score ~ runtime + genre + critics_rating + imdb_rating + thtr_rel_year**  
+
+**Model diagonostics for the Multiple Linear Regression Model**  
+
+The following conditions need to be satisfied to confirm the model is a reliable model.   
+
+**1. Linear Relationship between numerical variable and the response variable.**   
+
+This can be checked by plotting the numerical variable against the residual value.  
+
+```{r}
+#Scatterplot for residuals vs runtime
+ggplot(data = movies_newset, aes(x = movies_newset$runtime, y = best_model$residuals))+
+  geom_point(color = "orange")+
+  geom_hline(yintercept = 0, linetype = "dashed")+
+  xlab("Runtime")+
+  ylab("Residuals")
+
+#Scatterplot for residuals vs imdb_rating
+ggplot(data = movies_newset, aes(x = movies_newset$imdb_rating, y = best_model$residuals))+
+  geom_point(color = "blue")+
+  geom_hline(yintercept = 0, linetype = "dashed")+
+  xlab("imdb_rating")+
+  ylab("Residuals")
+
+#Scatterplot for residuals vs thtr_rel_year
+ggplot(data = movies_newset, aes(x = movies_newset$thtr_rel_year, y = best_model$residuals))+
+  geom_point(color = "aquamarine4")+
+  geom_hline(yintercept = 0, linetype = "dashed")+
+  xlab("thtr_rel_year")+
+  ylab("Residuals")
+```
+  
+From the above three plots we notice that for all the three variables, residual is scattered randomly around 0. This shows that that there is a linear relationship between all the numerical variables and the residuals.  
+
+
+**2. Nearly normal residuals with mean 0**
+
+This can be checked by plotting a histogram and a normal probability plot. Ideally, for a linear regression, the histogram should be centered around 0.  
+
+```{r}
+#histogram of residuals
+ggplot(data = best_model, aes(x = .resid))+
+  geom_histogram(bins = 30)
+
+qqnorm(best_model$residuals)
+qqline(best_model$residuals)
+```
+
+From the above plots, we observe that the residuals are indeed centered at 0. The histogram and the normal probability plot show that the plot is right-skewed but most of the residual is along the line indicating that the model is linear.  
+
+
+
+**3. Constant variability of residuals**  
+
+The constant variability of residuals condition can be checked by plotting the predicted values against the residuals. For a linear regression, the plot should be scattered randomly around 0 without having any shape.  
+
+```{r}
+#scatterplot of residuals vs predicted values
+ggplot(data = best_model, aes(x = .fitted, y = .resid))+
+  geom_point(col = "brown")+
+  geom_hline(yintercept = 0, linetype = "dashed")+
+  xlab("Predicted Value")+
+  ylab("Residual Values")
+```
+
+The above plot shows that the scatter is random. This proves constant variability of residuals.  
+
+
+**4. Independent Residuals**
+
+The reason for plotting the residuals is to check for the independence of residuals and identify if there exists any time series. We could check for the independence of residuals.  
+
+```{r}
+#scatterplot of residuals
+plot(best_model$residuals)
+```
+
+From the above plot, it is clear there is no time series present in the dataset. The residuals are scattered randomly around 0 indicating the independence of residuals.  
+
+***
+
+## Part 5: Prediction  
+
+
+To check how our final model "best_model" performs, let us see how our model performs on some examples. First, we try to predict the audience_score using one of the biggest blockbusters of 2018, **"Avengers:Infinity War"**.  
+
+```{r}
+#audience score prediction for Avengers:Infinity War
+avengers_infinity_war <- data.frame(runtime = 149, genre = "Science Fiction & Fantasy", critics_rating = "Certified Fresh", imdb_rating = 8.5, thtr_rel_year = 2018)
+predict(best_model, avengers_infinity_war)
+
+```
+
+Our model predicts that the audience_score is 90.16% while the real audience_score on Rotten Tomatoes is 91%. Our model's estimate is very close to the original prediction. To check if the actual value of the audience_score falls within the interval, let us look at the interval prediction at 95% confidence level.  
+
+```{r}
+#predicting the confidence interval for Avengers:Infinity War using the best fit model
+predict(best_model, avengers_infinity_war, interval = "prediction", conf.level = 0.95)
+```
+The actual value, 91%, falls well within the 95% confidence interval of (69.6007, 110.717).  
+
+Let's look at another movie from a different genre with not so good imdb_rating or critics_rating to understand the prediction of the model. We'll look at the audience_score prediction of the Bond movie **"Live and Let Die"**  
+
+```{r}
+#audience score prediction for Live and Let Die
+live_and_let_die <- data.frame(runtime = 121, genre = "Mystery & Suspense", critics_rating = "Fresh", imdb_rating = 6.8, thtr_rel_year = 1973)
+predict(best_model, live_and_let_die)
+```
+
+The audience_score prediction according to our model was 63.3%. The actual value of the audience_score was 65%. The prediction value of our model is very close to the actual score.   
+
+```{r}
+#predicting the confidence interval for Live and Let Die using the best fit model
+predict(best_model, live_and_let_die, interval = "prediction", conf.level = 0.95)
+```
+
+The actual audience_score falls within the 95% confidence interval of (43.90, 82.70).  
+
+With these two examples, it is evident that the "best_model" has good prediction and low error rates (0.92 % in the case of Avengers: Infinity War and 2.61% in case of Live and Let Die). The actual value of the audience_score is also within the 95% confidence interval. The references are in "Part 7: References" section.  
+
+***
+
+## Part 6: Conclusion
+
+Based on our research, we conclude that runtime and genre were the two variables which were a better fit for predicting the audience score apart from the regular variables like imdb rating, critics rating and year of release. Contradictory to my assumptions, best actor or actress win did not influence the audience score as much as the genre or runtime. We can observe this in the density plot between audience score and best actor/actress win.  
+
+The parsimonious model obtained does a decent job in predicting the audience score which is almost close to the actual audience score. We can reduce the error rate by including other real-time variables like box office collections, popularity rating of the franchise (Eg. Marvel Cinematic Universe), etc.  
+
+***
+
+## Part 7: References
+ 
+1. [Avengers: Infinity War Wikipedia page](https://en.wikipedia.org/wiki/Avengers:_Infinity_War)  
+2. [Avengers: Infinity War IMDb page](https://www.imdb.com/title/tt4154756/)  
+3. [Avengers: Infinity War Rotten Tomatoes page](https://www.rottentomatoes.com/m/avengers_infinity_war)  
+4. [Step function documentation](https://www.rdocumentation.org/packages/stats/versions/3.6.1/topics/step)  
+
+***
